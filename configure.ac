@@ -340,6 +340,34 @@ AS_IF([test "x$enable_hl" = xyes], [
 
 AM_CONDITIONAL([HABANALABS], [test x$enable_hl = xyes])
 
+AC_ARG_ENABLE([topca],
+	[AS_HELP_STRING([--enable-topca],
+			[Enable hx gpu benchmarks])
+	],
+        [],
+        [enable_topca=no])
+
+AC_ARG_WITH([topca],
+        [AS_HELP_STRING([--with-topca=@<:@hx topca installation prefix@:>@],
+                        [Provide hx topca installation prefix])
+        ],
+        [AS_CASE([$with_topca],
+                [yes|no], [],
+                [CPPFLAGS="-I$with_topca/include $CPPFLAGS"
+                LDFLAGS="-L$with_topca/lib -Wl,-rpath=$with_topca/lib -ltcrt -lhxrt -lhx_rdma $LDFLAGS"])
+        ])
+
+AS_IF([test "x$enable_topca" = xyes], [
+        AC_DEFINE([HAVE_TOPCA], [1], [Enable Hx GPU benchmarks])
+        AC_CHECK_HEADERS([hx_runtime.h], [],
+                        [AC_MSG_ERROR([could not find hx_runtime.h in include path])])
+        AC_SEARCH_LIBS([tcFree], [tcrt], [],
+                        [AC_MSG_ERROR([could not find library, tcrt])])
+        ])
+
+AM_CONDITIONAL([TOPCA], [test x$enable_topca = xyes])
+
+
 AC_TRY_LINK([#include <infiniband/verbs.h>],
 	[struct ibv_qp_attr *attr; int x = attr->rate_limit;],[HAVE_PACKET_PACING=yes], [HAVE_PACKET_PACING=no])
 AM_CONDITIONAL([HAVE_PACKET_PACING],[test "x$HAVE_PACKET_PACING" = "xyes"])

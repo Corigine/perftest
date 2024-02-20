@@ -440,7 +440,8 @@ enum memory_type {
 	MEMORY_CUDA,
 	MEMORY_ROCM,
 	MEMORY_NEURON,
-	MEMORY_HL
+	MEMORY_HL,
+	MEMORY_TOPCA
 };
 
 struct perftest_parameters {
@@ -570,6 +571,7 @@ struct perftest_parameters {
 	int				use_cuda_dmabuf;
 	int				rocm_device_id;
 	int				neuron_core_id;
+	int				topca_device_id;
 	int				use_neuron_dmabuf;
 	char				*hl_device_bus_id;
 	char				*mmap_file;

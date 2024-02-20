@@ -18,6 +18,7 @@
 #include "rocm_memory.h"
 #include "neuron_memory.h"
 #include "hl_memory.h"
+#include "topca_memory.h"
 #include<math.h>
 #ifdef HAVE_RO
 #include <stdbool.h>
@@ -582,6 +583,11 @@ static void usage(const char *argv0, VerbType verb, TestType tst, int connection
 			printf(" Use selected Habana Labs device for RDMA testing\n");
 		}
 
+		if (topca_memory_supported()) {
+			printf("      --use_topca=<hx device id>");
+			printf(" Use selected hx gpu device for GPUDirect RDMA testing\n");
+		}
+
 		printf("      --use_hugepages ");
 		printf(" Use Hugepages instead of contig, memalign allocations.\n");
 	}
@@ -802,6 +808,7 @@ static void init_perftest_params(struct perftest_parameters *user_param)
 	user_param->use_cuda_dmabuf	= 0;
 	user_param->rocm_device_id	= 0;
 	user_param->neuron_core_id	= 0;
+	user_param->topca_device_id	= 0;
 	user_param->mmap_file		= NULL;
 	user_param->mmap_offset		= 0;
 	user_param->iters_per_port[0]	= 0;
@@ -2223,6 +2230,7 @@ int parser(struct perftest_parameters *user_param,char *argv[], int argc)
 	static int use_neuron_flag = 0;
 	static int use_neuron_dmabuf_flag = 0;
 	static int use_hl_flag = 0;
+	static int use_topca_flag = 0;
 	static int disable_pcir_flag = 0;
 	static int mmap_file_flag = 0;
 	static int mmap_offset_flag = 0;
@@ -2378,6 +2386,7 @@ int parser(struct perftest_parameters *user_param,char *argv[], int argc)
 			{ .name = "use_neuron",		.has_arg = 1, .flag = &use_neuron_flag, .val = 1},
 			{ .name = "use_neuron_dmabuf",	.has_arg = 0, .flag = &use_neuron_dmabuf_flag, .val = 1},
 			{ .name = "use_hl",		.has_arg = 1, .flag = &use_hl_flag, .val = 1},
+			{ .name = "use_topca",		.has_arg = 1, .flag = &use_topca_flag, .val = 1},
 			{ .name = "mmap",		.has_arg = 1, .flag = &mmap_file_flag, .val = 1},
 			{ .name = "mmap-offset",	.has_arg = 1, .flag = &mmap_offset_flag, .val = 1},
 			{ .name = "ipv6",		.has_arg = 0, .flag = &ipv6_flag, .val = 1},
@@ -2797,6 +2806,7 @@ int parser(struct perftest_parameters *user_param,char *argv[], int argc)
 				if (((use_cuda_flag || use_cuda_bus_id_flag) && !cuda_memory_supported()) ||
 				    (use_cuda_dmabuf_flag && !cuda_memory_dmabuf_supported()) ||
 				    (use_rocm_flag && !rocm_memory_supported()) ||
+					(use_topca_flag && !topca_memory_supported()) ||
 				    (use_neuron_flag && !neuron_memory_supported()) ||
 				    (use_neuron_dmabuf_flag && !neuron_memory_dmabuf_supported()) ||
 				    (use_hl_flag && !hl_memory_supported())) {
@@ -2805,7 +2815,7 @@ int parser(struct perftest_parameters *user_param,char *argv[], int argc)
 				}
 				/* Memory types are mutually exclucive, make sure we were not already asked to use a different memory type. */
 				if (user_param->memory_type != MEMORY_HOST &&
-				    (mmap_file_flag || use_rocm_flag || use_neuron_flag || use_hl_flag ||
+				    (mmap_file_flag || use_rocm_flag || use_neuron_flag || use_hl_flag || use_topca_flag ||
 				     ((use_cuda_flag || use_cuda_bus_id_flag) && user_param->memory_type != MEMORY_CUDA))) {
 					fprintf(stderr, " Can't use multiple memory types\n");
 					return FAILURE;
@@ -2863,6 +2873,13 @@ int parser(struct perftest_parameters *user_param,char *argv[], int argc)
 					user_param->memory_create = hl_memory_create;
 					use_hl_flag = 0;
 				}
+				if (use_topca_flag) {
+					CHECK_VALUE_NON_NEGATIVE(user_param->topca_device_id,int,"hx gpu device",not_int_ptr);
+					user_param->memory_type = MEMORY_TOPCA;
+					user_param->memory_create = topca_memory_create;
+					use_topca_flag = 0;
+				}
+
 				if (flow_label_flag) {
 					CHECK_VALUE(user_param->flow_label,int,"flow label",not_int_ptr);
 					if (user_param->connection_type == RawEth && user_param->flow_label < 0) {
@@ -3500,6 +3517,9 @@ void ctx_print_test_info(struct perftest_parameters *user_param)
 	if (rocm_memory_supported())
 		printf(" Use ROCm memory : %s\n", user_param->memory_type == MEMORY_ROCM ? "ON" : "OFF");
 
+	if (topca_memory_supported())
+		printf(" Use topca memory : %s\n", user_param->memory_type == MEMORY_TOPCA ? "ON" : "OFF");
+
 	printf(" Data ex. method : %s",exchange_state[temp]);
 
 	if (user_param->work_rdma_cm) {
@@ -3736,6 +3756,7 @@ static void write_test_info_to_file(int out_json_fds, struct perftest_parameters
 		temp = 1;
 
 	dprintf(out_json_fds, "\"Use_ROCm_memory\": \"%s\",\n", user_param->memory_type == MEMORY_ROCM ? "ON" : "OFF");
+	dprintf(out_json_fds, "\"Use_topca_memory\": \"%s\",\n", user_param->memory_type == MEMORY_TOPCA ? "ON" : "OFF");
 
 	dprintf(out_json_fds, "\"Data_ex_method\": \"%s\"",exchange_state[temp]);
 
